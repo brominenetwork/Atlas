@@ -1,6 +1,6 @@
 <div align="center">
 
-# Atlas
+# Atlas (beta 1.0.1)
 by Bromine Network
 
 [![Discord](https://img.shields.io/badge/discord-unblockings-5865F2?style=flat-square)](https://discord.gg/unblockings)
