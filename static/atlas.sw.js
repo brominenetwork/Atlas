@@ -20,7 +20,27 @@ self.addEventListener("fetch", (event) => {
 
   if (url.origin !== self.location.origin) return;
   if (PASSTHROUGH.has(url.pathname)) return;
-  if (!url.pathname.startsWith(ATLAS_PREFIX)) return;
+
+  if (!url.pathname.startsWith(ATLAS_PREFIX)) {
+    if (event.request.mode === "navigate" && event.request.referrer) {
+      try {
+        const ref = new URL(event.request.referrer);
+        if (ref.origin === self.location.origin && ref.pathname.startsWith(ATLAS_PREFIX)) {
+          const refRaw = decodeURIComponent(ref.pathname.slice(ATLAS_PREFIX.length));
+          const baseUrl = /^https?:\/\//i.test(refRaw) ? refRaw : swDecode(refRaw);
+          if (baseUrl) {
+            const fullUrl = new URL(url.pathname + url.search, baseUrl).href;
+            const encoded = swEncode(fullUrl);
+            if (encoded) {
+              event.respondWith(Response.redirect(ATLAS_PREFIX + encoded, 302));
+              return;
+            }
+          }
+        }
+      } catch {}
+    }
+    return;
+  }
 
   event.respondWith(handleRequest(event.request));
 });
@@ -29,6 +49,15 @@ function swEncode(url) {
   try {
     return btoa(encodeURIComponent(url))
       .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+  } catch {
+    return null;
+  }
+}
+
+function swDecode(encoded) {
+  try {
+    const padded = encoded + "=".repeat((4 - (encoded.length % 4)) % 4);
+    return decodeURIComponent(atob(padded.replace(/-/g, "+").replace(/_/g, "/")));
   } catch {
     return null;
   }

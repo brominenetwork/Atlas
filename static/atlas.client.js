@@ -60,18 +60,33 @@
     return nativeReplace(cfg.rewrite(url, base));
   };
 
+  try {
+    var _hrefDesc = Object.getOwnPropertyDescriptor(Location.prototype, "href");
+    if (_hrefDesc && _hrefDesc.set) {
+      var _origHrefSetter = _hrefDesc.set;
+      var _proxyOrigin = location.origin;
+      Object.defineProperty(Location.prototype, "href", {
+        get: _hrefDesc.get,
+        set: function (value) {
+          var v = String(value);
+          if (v.startsWith(_proxyOrigin + "/atlas/")) {
+            _origHrefSetter.call(this, v);
+          } else {
+            _origHrefSetter.call(this, cfg.rewrite(v, base));
+          }
+        },
+        configurable: true,
+      });
+    }
+  } catch (e) {}
+
   document.addEventListener(
     "click",
     function (e) {
       var el = e.target && e.target.closest && e.target.closest("a[href]");
       if (!el) return;
       var href = el.getAttribute("href");
-      if (
-        !href ||
-        href.startsWith("javascript:") ||
-        href.startsWith("#") ||
-        href.startsWith("/atlas/")
-      )
+      if (!href || href.startsWith("javascript:") || href.startsWith("#"))
         return;
       e.preventDefault();
       location.href = cfg.rewrite(href, base);
