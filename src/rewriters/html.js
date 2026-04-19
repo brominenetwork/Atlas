@@ -23,6 +23,10 @@ function processAttrs(attrs, base) {
       if (n === "style") return sp + name + eq + q + rewriteCss(val, base) + q;
       if (URL_ATTRS.has(n)) return sp + name + eq + q + rewriteUrl(val.trim(), base) + q;
       if (SRCSET_ATTRS.has(n)) return sp + name + eq + q + rewriteSrcset(val, base) + q;
+      if (n === "content") {
+        const refreshed = val.replace(/^(\d[^;]*;\s*url\s*=\s*)(\S+)/i, (_, pre, url) => pre + rewriteUrl(url, base));
+        if (refreshed !== val) return sp + name + eq + q + refreshed + q;
+      }
       return m;
     }
   );
@@ -40,12 +44,27 @@ function findTagEnd(html, from) {
 }
 
 const INJECT = (base) =>
-  `<script>!function(){var c=window.__atlas={prefix:"/atlas/",base:${JSON.stringify(base)},` +
+  `<script>!function(){` +
+  `var c=window.__atlas={prefix:"/atlas/",base:${JSON.stringify(base)},` +
   `encode:function(u){try{return btoa(encodeURIComponent(u)).replace(/\\+/g,"-").replace(/\\//g,"_").replace(/=/g,"")}catch(e){return u}},` +
   `decode:function(e){try{var p=e+"=".repeat((4-e.length%4)%4);return decodeURIComponent(atob(p.replace(/-/g,"+").replace(/_/g,"/")))}catch(e){return e}},` +
   `rewrite:function(u,b){if(!u)return u;var t=String(u).trim();` +
   `if(/^(javascript:|data:|blob:|#|mailto:|tel:|about:|\\/atlas\\/)/.test(t))return u;` +
-  `try{var r=b?new URL(t,b).href:new URL(t).href;return"/atlas/"+c.encode(r)}catch(e){return u}}}();</script>` +
+  `try{var r=b?new URL(t,b).href:new URL(t).href;return"/atlas/"+c.encode(r)}catch(e){return u}}};` +
+  `var _po=location.origin,_rl=window.location;c._rl=_rl;` +
+  `function _pn(v){v=String(v);if(v.startsWith(_po+"/atlas/")||v.startsWith("/atlas/"))return v;` +
+  `try{var _u=new URL(v);var _sp=location.port||(location.protocol==="https:"?"443":"80");var _up=_u.port||(_u.protocol==="https:"?"443":"80");` +
+  `if(_up===_sp&&_u.pathname.startsWith("/atlas/")&&(_u.hostname==="localhost"||_u.hostname.endsWith(".localhost")))return _u.pathname+_u.search+_u.hash;}catch(e){}` +
+  `return c.rewrite(v,c.base);}` +
+  `try{var _d=Object.getOwnPropertyDescriptor(Location.prototype,"href");if(_d&&_d.set){var _oh=_d.set;Object.defineProperty(Location.prototype,"href",{get:_d.get,set:function(v){_oh.call(this,_pn(v));},configurable:true});}}catch(e){}` +
+  `try{var _lp=new Proxy(_rl,{set:function(t,p,v){if(p==="href"){_rl.href=_pn(String(v));return true;}t[p]=v;return true;},get:function(t,p){var v=t[p];return typeof v==="function"?v.bind(t):v;}});Object.defineProperty(window,"location",{get:function(){return _lp;},set:function(v){_rl.href=_pn(String(v));},configurable:true});}catch(e){}` +
+  `if(window.navigation){window.navigation.addEventListener("navigate",function(e){if(!e.canIntercept||e.hashChange||e.downloadRequest!==null)return;var d=e.destination.url;if(d.startsWith(_po+"/atlas/"))return;try{if(new URL(d).origin===_po)return;}catch(err){return;}e.intercept({handler:function(){return Promise.resolve();}});_rl.href=_pn(d);});}` +
+  `var _nwo=window.open;window.open=function(u,t,f){if(typeof u==="string")u=_pn(u);return _nwo.call(window,u,t,f);};` +
+  `try{_rl.assign=function(u){_rl.href=_pn(u);};_rl.replace=function(u){_rl.href=_pn(u);};}catch(e){}` +
+  `document.addEventListener("mousedown",function(e){var el=e.target&&e.target.closest&&e.target.closest("a[href]");if(!el)return;var h=el.getAttribute("href");if(!h)return;var r=c.rewrite(h,c.base);if(r!==h)el.setAttribute("href",r);},true);` +
+  `document.addEventListener("click",function(e){var el=e.target&&e.target.closest&&e.target.closest("a[href]");if(!el)return;var h=el.getAttribute("href");if(!h||h.startsWith("javascript:")||h.startsWith("#"))return;e.preventDefault();var p=_pn(c.rewrite(h,c.base));if(el.target==="_blank"||el.target==="_new")window.open(p,"_blank");else _rl.href=p;},true);` +
+  `document.addEventListener("submit",function(e){var f=e.target;if(!f||!f.action)return;if(f.action.startsWith(_po+"/atlas/"))return;e.preventDefault();f.action=_pn(f.action);f.submit();},true);` +
+  `}();</script>` +
   `<script src="/atlas.client.js"></script>`;
 
 export function rewriteHtml(html, base) {

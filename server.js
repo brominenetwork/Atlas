@@ -52,6 +52,7 @@ function serveFile(res, filePath) {
   const ext = path.extname(filePath).toLowerCase();
   const mime = MIMES[ext] || "application/octet-stream";
   res.setHeader("Content-Type", mime);
+  res.setHeader("Cache-Control", "no-store");
   fs.createReadStream(filePath).pipe(res);
 }
 

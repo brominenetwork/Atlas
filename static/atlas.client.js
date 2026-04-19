@@ -3,6 +3,7 @@
   if (!cfg) return;
 
   var base = cfg.base || location.href;
+  var _rl = cfg._rl || window.location;
 
   var nativeFetch = window.fetch;
   window.fetch = function (input, init) {
@@ -26,85 +27,49 @@
     return nativeXhrOpen.apply(this, args);
   };
 
-  var nativeWindowOpen = window.open;
-  window.open = function (url, target, features) {
-    if (typeof url === "string") {
-      url = cfg.rewrite(url, base);
-    }
-    return nativeWindowOpen.call(window, url, target, features);
-  };
-
   var nativePushState = history.pushState;
   history.pushState = function (state, title, url) {
-    if (typeof url === "string") {
-      url = cfg.rewrite(url, base);
-    }
+    if (typeof url === "string") url = cfg.rewrite(url, base);
     return nativePushState.call(history, state, title, url);
   };
 
   var nativeReplaceState = history.replaceState;
   history.replaceState = function (state, title, url) {
-    if (typeof url === "string") {
-      url = cfg.rewrite(url, base);
-    }
+    if (typeof url === "string") url = cfg.rewrite(url, base);
     return nativeReplaceState.call(history, state, title, url);
   };
 
-  var nativeAssign = location.assign.bind(location);
-  location.assign = function (url) {
-    return nativeAssign(cfg.rewrite(url, base));
-  };
+  function preRewriteAnchor(el) {
+    var href = el.getAttribute("href");
+    if (!href) return;
+    var rewritten = cfg.rewrite(href, base);
+    if (rewritten !== href) el.setAttribute("href", rewritten);
+  }
 
-  var nativeReplace = location.replace.bind(location);
-  location.replace = function (url) {
-    return nativeReplace(cfg.rewrite(url, base));
-  };
+  function preRewriteAll(root) {
+    if (!root || root.nodeType !== 1) return;
+    if (root.tagName === "A") { preRewriteAnchor(root); return; }
+    var anchors = root.querySelectorAll ? root.querySelectorAll("a[href]") : [];
+    for (var i = 0; i < anchors.length; i++) preRewriteAnchor(anchors[i]);
+  }
 
-  try {
-    var _hrefDesc = Object.getOwnPropertyDescriptor(Location.prototype, "href");
-    if (_hrefDesc && _hrefDesc.set) {
-      var _origHrefSetter = _hrefDesc.set;
-      var _proxyOrigin = location.origin;
-      Object.defineProperty(Location.prototype, "href", {
-        get: _hrefDesc.get,
-        set: function (value) {
-          var v = String(value);
-          if (v.startsWith(_proxyOrigin + "/atlas/")) {
-            _origHrefSetter.call(this, v);
-          } else {
-            _origHrefSetter.call(this, cfg.rewrite(v, base));
-          }
-        },
-        configurable: true,
-      });
-    }
-  } catch (e) {}
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () { preRewriteAll(document.body); });
+  } else {
+    preRewriteAll(document.body);
+  }
 
-  document.addEventListener(
-    "click",
-    function (e) {
-      var el = e.target && e.target.closest && e.target.closest("a[href]");
-      if (!el) return;
-      var href = el.getAttribute("href");
-      if (!href || href.startsWith("javascript:") || href.startsWith("#"))
-        return;
-      e.preventDefault();
-      location.href = cfg.rewrite(href, base);
-    },
-    true
-  );
-
-  document.addEventListener(
-    "submit",
-    function (e) {
-      var form = e.target;
-      if (!form || !form.action) return;
-      if (form.action.startsWith(location.origin + "/atlas/")) return;
-      e.preventDefault();
-      var action = cfg.rewrite(form.action, base);
-      form.action = action;
-      form.submit();
-    },
-    true
-  );
+  if (typeof MutationObserver !== "undefined") {
+    var _mo = new MutationObserver(function (mutations) {
+      for (var i = 0; i < mutations.length; i++) {
+        var m = mutations[i];
+        if (m.type === "childList") {
+          for (var j = 0; j < m.addedNodes.length; j++) preRewriteAll(m.addedNodes[j]);
+        } else if (m.type === "attributes" && m.target && m.target.tagName === "A") {
+          preRewriteAnchor(m.target);
+        }
+      }
+    });
+    _mo.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ["href"] });
+  }
 })();
